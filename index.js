@@ -7,40 +7,44 @@ const app = express();
 app.use(express.json());
 
 app.get("/", (req, res) => {
-  res.send("TeraFetch Backend Live ✔");
+  res.send("🔥 TeraFetch Backend Running with FFmpeg");
 });
 
-// MAIN API
 app.get("/api/merge", async (req, res) => {
   const videoUrl = req.query.url;
-
-  if (!videoUrl)
-    return res.json({ error: "Missing ?url parameter" });
+  if (!videoUrl) return res.json({ error: "Missing ?url parameter" });
 
   try {
-    // Step 1: Extract m3u8 playlist URL
+    // WORKER API
     const apiURL =
-      "https://terafetch.your-worker.workers.dev/?url=" + encodeURIComponent(videoUrl);
+      "https://terafetch.yaartunah.workers.dev/?url=" + encodeURIComponent(videoUrl);
 
-    const json = await fetch(apiURL).then((r) => r.json());
+    console.log("Calling worker:", apiURL);
 
-    if (!json.stream)
-      return res.json({ error: "No stream found", details: json });
+    const data = await fetch(apiURL).then((r) => r.json());
 
-    const m3u8 = json.stream;
+    console.log("Worker Result:", data);
 
-    // Step 2: TEMP FILE PATHS
-    const outputFile = `/tmp/output_${Date.now()}.mp4`;
+    if (!data || !data.stream)
+      return res.json({
+        error: "No downloadable stream found",
+        details: data,
+      });
 
-    // Step 3: ffmpeg command
+    const m3u8 = data.stream;
+
+    const outputFile = `/tmp/video_${Date.now()}.mp4`;
+
     const cmd = `ffmpeg -i "${m3u8}" -c copy -bsf:a aac_adtstoasc "${outputFile}"`;
 
-    exec(cmd, async (err) => {
+    exec(cmd, (err, stdout, stderr) => {
       if (err) {
-        return res.json({ error: "FFmpeg merge failed", details: err });
+        return res.json({
+          error: "FFmpeg error",
+          details: stderr,
+        });
       }
 
-      // Step 4: Send file to user
       res.download(outputFile, "terabox_video.mp4", () => {
         fs.unlinkSync(outputFile);
       });
@@ -51,4 +55,4 @@ app.get("/api/merge", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Server running on " + PORT));
+app.listen(PORT, () => console.log("Server Started on " + PORT));
